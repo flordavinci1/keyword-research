@@ -4,13 +4,13 @@ import urllib.parse
 import re
 from collections import defaultdict
 
-st.set_page_config(page_title="Keyword Explorer Educativo V2", layout="centered")
-st.title("🔍 Keyword Explorer Educativo V2")
-st.write("Explorá palabras clave relacionadas y aprendé sobre intención de búsqueda y agrupación temática.")
+st.set_page_config(page_title="Keyword Explorer Educativo (completo)", layout="centered")
+st.title("🔍 Keyword Explorer Educativo – versión combinada")
+st.write("Explorá ideas de palabras clave, descubrí intención de búsqueda y agrupá por tema para crear mejores contenidos.")
 
-query = st.text_input("Ingresá una palabra clave o tema:", placeholder="Ej: compostaje urbano")
+query = st.text_input("🔡 Ingresá una palabra clave o tema:", placeholder="Ej: compostaje urbano")
 
-# Clasificación de intención
+# Función: Clasificación de intención
 def clasificar_intencion(palabra):
     palabra = palabra.lower()
     if re.match(r"^(qué|como|por qué|para qué|quién|cuándo|dónde|tipos de|beneficios de)", palabra):
@@ -22,7 +22,7 @@ def clasificar_intencion(palabra):
     else:
         return "📘 Informacional"
 
-# Agrupamiento temático simple
+# Función: Agrupamiento temático simple
 def agrupar_keywords(sugerencias):
     grupos = defaultdict(list)
     for kw in sugerencias:
@@ -32,29 +32,77 @@ def agrupar_keywords(sugerencias):
     return grupos
 
 if query:
-    st.markdown(f"### Resultados para: **{query}**")
+    st.markdown(f"## Resultados para: **{query}**")
+    sugerencias_totales = []
 
-    # Obtener sugerencias de Google
+    # Sección 1: Sugerencias de Google
+    st.subheader("📚 Sugerencias desde Google")
     try:
-        suggest_url = f"https://suggestqueries.google.com/complete/search?client=firefox&q={urllib.parse.quote(query)}"
-        r = requests.get(suggest_url)
-        sugerencias = r.json()[1]
-        st.success(f"Se encontraron {len(sugerencias)} sugerencias.")
+        google_url = f"https://suggestqueries.google.com/complete/search?client=firefox&q={urllib.parse.quote(query)}"
+        r = requests.get(google_url)
+        google_suggestions = r.json()[1]
+        sugerencias_totales.extend(google_suggestions)
+        if google_suggestions:
+            for s in google_suggestions:
+                st.markdown(f"- {s}")
+        else:
+            st.info("No se encontraron sugerencias.")
+    except Exception as e:
+        st.error(f"Error al obtener sugerencias de Google: {e}")
 
-        # Clasificar cada una
-        st.subheader("🔎 Sugerencias clasificadas por intención de búsqueda")
-        for s in sugerencias:
+    # Sección 2: Sugerencias de YouTube
+    st.subheader("🎥 Sugerencias desde YouTube")
+    try:
+        yt_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote(query)}"
+        r = requests.get(yt_url)
+        yt_suggestions = r.json()[1]
+        sugerencias_totales.extend(yt_suggestions)
+        if yt_suggestions:
+            for s in yt_suggestions:
+                st.markdown(f"- {s}")
+        else:
+            st.info("No se encontraron sugerencias en YouTube.")
+    except Exception as e:
+        st.error(f"Error al obtener sugerencias de YouTube: {e}")
+
+    # Sección 3: Wikipedia
+    st.subheader("📖 Temas y entidades desde Wikipedia")
+    try:
+        wiki_api = "https://es.wikipedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "format": "json",
+            "list": "search",
+            "srsearch": query,
+            "srlimit": 5
+        }
+        r = requests.get(wiki_api, params=params)
+        results = r.json()["query"]["search"]
+        if results:
+            for result in results:
+                title = result["title"]
+                snippet = result["snippet"].replace("<span class=\"searchmatch\">", "**").replace("</span>", "**")
+                url = f"https://es.wikipedia.org/wiki/{title.replace(' ', '_')}"
+                st.markdown(f"🔗 [{title}]({url})")
+                st.markdown(f"_{snippet}_\n")
+        else:
+            st.info("No se encontraron temas en Wikipedia.")
+    except Exception as e:
+        st.error(f"Error al consultar Wikipedia: {e}")
+
+    # Sección 4: Clasificación por intención
+    st.subheader("🔎 Clasificación por intención de búsqueda")
+    if sugerencias_totales:
+        for s in sorted(set(sugerencias_totales)):
             tipo = clasificar_intencion(s)
             st.markdown(f"- {tipo} → **{s}**")
 
-        # Agrupar
-        st.subheader("🧩 Agrupamiento temático")
-        grupos = agrupar_keywords(sugerencias)
-        for clave, items in grupos.items():
-            st.markdown(f"**Grupo `{clave}`** ({len(items)}):")
-            for item in items:
-                st.markdown(f"- {item}")
-            st.markdown("---")
+    # Sección 5: Agrupamiento temático
+    st.subheader("🧩 Agrupamiento temático")
+    grupos = agrupar_keywords(sorted(set(sugerencias_totales)))
+    for grupo, items in grupos.items():
+        st.markdown(f"**Grupo `{grupo}`** ({len(items)}):")
+        for item in items:
+            st.markdown(f"- {item}")
+        st.markdown("---")
 
-    except Exception as e:
-        st.error(f"No se pudo obtener sugerencias: {e}")
