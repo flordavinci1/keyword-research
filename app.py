@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 
 st.set_page_config(page_title="Keyword Explorer Educativo (completo)", layout="centered")
-st.title("🔍 Flor de Research - U Keyword Explorer Educativo")
+st.title("🔍 Flor de Research - Un Keyword Explorer Educativo")
 st.write("Explorá ideas de palabras clave, descubrí intención de búsqueda y agrupá por tema para crear mejores contenidos.")
 
 query = st.text_input("🔡 Ingresá una palabra clave o tema:", placeholder="Ej: compostaje urbano")
