@@ -3,12 +3,16 @@ import requests
 import urllib.parse
 import re
 from collections import defaultdict
+from pytrends.request import TrendReq
 
 st.set_page_config(page_title="Keyword Explorer Educativo (completo)", layout="centered")
-st.title("🔍 Flor de Research - Un Keyword Explorer Educativo")
+st.title("🔍 Flor de Research - Keyword Explorer Educativo")
 st.write("Explorá ideas de palabras clave, descubrí intención de búsqueda y agrupá por tema para crear mejores contenidos.")
 
 query = st.text_input("🔡 Ingresá una palabra clave o tema:", placeholder="Ej: compostaje urbano")
+
+# Lista para plan de acción acumulado
+plan_accion = []
 
 # Función: Clasificación de intención
 def clasificar_intencion(palabra):
@@ -35,7 +39,7 @@ if query:
     st.markdown(f"## Resultados para: **{query}**")
     sugerencias_totales = []
 
-    # Sección 1: Sugerencias de Google
+    # --- 1. Google Autocomplete ---
     st.subheader("📚 Sugerencias desde Google")
     try:
         google_url = f"https://suggestqueries.google.com/complete/search?client=firefox&q={urllib.parse.quote(query)}"
@@ -44,13 +48,16 @@ if query:
         sugerencias_totales.extend(google_suggestions)
         if google_suggestions:
             for s in google_suggestions:
-                st.markdown(f"- {s}")
+                tipo = clasificar_intencion(s)
+                st.markdown(f"- {tipo} → **{s}**")
+                if tipo != "📘 Informacional":
+                    plan_accion.append(f"Revisar contenido para intención {tipo}: {s}")
         else:
             st.info("No se encontraron sugerencias.")
     except Exception as e:
         st.error(f"Error al obtener sugerencias de Google: {e}")
 
-    # Sección 2: Sugerencias de YouTube
+    # --- 2. YouTube ---
     st.subheader("🎥 Sugerencias desde YouTube")
     try:
         yt_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote(query)}"
@@ -59,13 +66,16 @@ if query:
         sugerencias_totales.extend(yt_suggestions)
         if yt_suggestions:
             for s in yt_suggestions:
-                st.markdown(f"- {s}")
+                tipo = clasificar_intencion(s)
+                st.markdown(f"- {tipo} → **{s}**")
+                if tipo != "📘 Informacional":
+                    plan_accion.append(f"Considerar contenido video para intención {tipo}: {s}")
         else:
             st.info("No se encontraron sugerencias en YouTube.")
     except Exception as e:
         st.error(f"Error al obtener sugerencias de YouTube: {e}")
 
-    # Sección 3: Wikipedia
+    # --- 3. Wikipedia ---
     st.subheader("📖 Temas y entidades desde Wikipedia")
     try:
         wiki_api = "https://es.wikipedia.org/w/api.php"
@@ -90,14 +100,7 @@ if query:
     except Exception as e:
         st.error(f"Error al consultar Wikipedia: {e}")
 
-    # Sección 4: Clasificación por intención
-    st.subheader("🔎 Clasificación por intención de búsqueda")
-    if sugerencias_totales:
-        for s in sorted(set(sugerencias_totales)):
-            tipo = clasificar_intencion(s)
-            st.markdown(f"- {tipo} → **{s}**")
-
-    # Sección 5: Agrupamiento temático
+    # --- 4. Agrupamiento temático ---
     st.subheader("🧩 Agrupamiento temático")
     grupos = agrupar_keywords(sorted(set(sugerencias_totales)))
     for grupo, items in grupos.items():
@@ -106,13 +109,35 @@ if query:
             st.markdown(f"- {item}")
         st.markdown("---")
 
+    # --- 5. Popularidad relativa (Google Trends) ---
+    st.subheader("📈 Popularidad relativa de la keyword principal")
+    try:
+        pytrends = TrendReq(hl='es-AR', tz=360)
+        pytrends.build_payload([query], timeframe='today 12-m', geo='AR', gprop='')
+        interest = pytrends.interest_over_time()
+        if not interest.empty:
+            st.line_chart(interest[query])
+            plan_accion.append(f"Monitorear tendencias de búsqueda para: {query}")
+        else:
+            st.info("No hay datos de tendencias disponibles.")
+    except Exception as e:
+        st.error(f"Error al consultar Google Trends: {e}")
+
+# --- Panel lateral con plan de acción acumulado ---
+st.sidebar.header("🎯 Plan de acción sugerido")
+if plan_accion:
+    for a in plan_accion:
+        st.sidebar.write(f"• {a}")
+else:
+    st.sidebar.write("No se han generado recomendaciones todavía.")
+
 # CTA final
 st.markdown("---")
 st.markdown(
     """
     <div style="text-align: center;">
-        <p>✨ Esta herramienta fue creada con fines educativos y de asistencia a profesionales que están comenzando en SEO.</p>
-        <p>💌 ¿Te sirvió? ¿Tenés alguna sugerencia? ¿Querés charlar sobre SEO, comunicación digital o IA aplicada? Escribime a <a href="mailto:florencia@crawla.agency">florencia@crawla.agency</a></p>
+        <p>✨ Herramienta educativa de SEO creada por Florencia Estevez.</p>
+        <p>💌 ¿Te sirvió? Comentanos o escribime: <a href="mailto:florencia@crawla.agency">florencia@crawla.agency</a></p>
         <br>
         <a href="https://www.linkedin.com/in/festevez3005/" target="_blank">
             <button style="background-color:#4B8BBE; color:white; padding:10px 20px; font-size:16px; border:none; border-radius:6px; cursor:pointer;">
