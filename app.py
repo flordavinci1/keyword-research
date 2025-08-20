@@ -27,17 +27,35 @@ hl = idioma
 
 query = st.text_input("🔡 Ingresá una palabra clave o tema:", placeholder="Ej: compostaje urbano")
 
-# Función: Clasificación de intención
+# Función: Clasificación de intención refinada
 def clasificar_intencion(palabra):
-    palabra = palabra.lower()
-    if re.match(r"^(qué|como|por qué|para qué|quién|cuándo|dónde|tipos de|beneficios de)", palabra):
+    palabra_lower = palabra.lower()
+    
+    # 1️⃣ Informacional
+    patrones_info = [
+        r"^(qué|cómo|por qué|para qué|quién|cuándo|dónde|significado de|tipos de|beneficios de|ejemplo de|tutorial|guía|explicación|definición|historia de)"
+    ]
+    if any(re.match(p, palabra_lower) for p in patrones_info):
         return "📘 Informacional"
-    elif any(p in palabra for p in ["comprar", "mejor", "precio", "opiniones", "barato", "oferta", "envío", "promoción"]):
+    
+    # 2️⃣ Comercial / Transaccional
+    keywords_comercial = [
+        "comprar", "precio", "mejor", "oferta", "descuento", "envío", "suscripción",
+        "opiniones", "reseña", "reserva", "cupon", "promoción", "barato", "barata", "servicio"
+    ]
+    if any(k in palabra_lower for k in keywords_comercial):
         return "🛒 Comercial / Transaccional"
-    elif any(p in palabra for p in ["facebook", "instagram", "youtube", "mercadolibre", "wikipedia", ".com", ".ar"]):
+    
+    # 3️⃣ Navegacional
+    keywords_navegacional = [
+        "facebook", "instagram", "youtube", "mercadolibre", "wikipedia",
+        ".com", ".ar", "login", "oficial", "portal"
+    ]
+    if any(k in palabra_lower for k in keywords_navegacional):
         return "🧭 Navegacional"
-    else:
-        return "📘 Informacional"
+    
+    # 4️⃣ Predeterminado
+    return "📘 Informacional"
 
 # Función: Agrupamiento temático simple
 def agrupar_keywords(sugerencias):
