@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import urllib.parse
 import re
-from collections import defaultdict
 
 st.set_page_config(page_title="Keyword Explorer Educativo (completo)", layout="centered")
 st.title("🔍 Flor de Research - Un Keyword Explorer Educativo")
@@ -56,15 +55,6 @@ def clasificar_intencion(palabra):
     
     # 4️⃣ Predeterminado
     return "📘 Informacional"
-
-# Función: Agrupamiento temático simple
-def agrupar_keywords(sugerencias):
-    grupos = defaultdict(list)
-    for kw in sugerencias:
-        tokens = [t for t in kw.lower().split() if t not in ("de", "para", "con", "el", "la", "los", "en", "y", "por")]
-        clave = tokens[0] if tokens else "Otros"
-        grupos[clave].append(kw)
-    return grupos
 
 if query:
     st.markdown(f"## Resultados para: **{query}**")
@@ -131,15 +121,6 @@ if query:
         for s in sorted(set(sugerencias_totales)):
             tipo = clasificar_intencion(s)
             st.markdown(f"- {tipo} → **{s}**")
-
-    # Sección 5: Agrupamiento temático
-    st.subheader("🧩 Agrupamiento temático")
-    grupos = agrupar_keywords(sorted(set(sugerencias_totales)))
-    for grupo, items in grupos.items():
-        st.markdown(f"**Grupo `{grupo}`** ({len(items)}):")
-        for item in items:
-            st.markdown(f"- {item}")
-        st.markdown("---")
 
 # CTA final
 st.markdown("---")
