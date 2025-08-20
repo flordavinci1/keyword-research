@@ -1,6 +1,5 @@
-streamlit>=1.25
-requests>=2.31
-pytrends>=4.9.0
-pandas>=2.0
-networkx>=3.1
-plotly>=5.20
+streamlit
+requests
+wikipedia
+networkx
+pyvis
