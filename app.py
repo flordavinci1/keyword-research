@@ -1,150 +1,74 @@
 import streamlit as st
-import requests
-import urllib.parse
-import re
-from collections import defaultdict
+import pandas as pd
 from pytrends.request import TrendReq
+import networkx as nx
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Keyword Explorer Educativo (completo)", layout="centered")
-st.title("🔍 Flor de Research - Keyword Explorer Educativo")
-st.write("Explorá ideas de palabras clave, descubrí intención de búsqueda y agrupá por tema para crear mejores contenidos.")
+st.title("Keyword Research Interactivo")
 
-query = st.text_input("🔡 Ingresá una palabra clave o tema:", placeholder="Ej: compostaje urbano")
+# --- Selección de país ---
+pais = st.selectbox("Seleccioná el país", ["Argentina", "España", "Chile", "México", "US"])
+geo_dict = {"Argentina": "AR", "España": "ES", "Chile": "CL", "México": "MX", "US": "US"}
+geo = geo_dict[pais]
 
-# Lista para plan de acción acumulado
-plan_accion = []
+# --- Input de keyword ---
+keyword = st.text_input("Ingresá la palabra clave principal:")
 
-# Función: Clasificación de intención
-def clasificar_intencion(palabra):
-    palabra = palabra.lower()
-    if re.match(r"^(qué|como|por qué|para qué|quién|cuándo|dónde|tipos de|beneficios de)", palabra):
-        return "📘 Informacional"
-    elif any(p in palabra for p in ["comprar", "mejor", "precio", "opiniones", "barato", "oferta", "envío", "promoción"]):
-        return "🛒 Comercial / Transaccional"
-    elif any(p in palabra for p in ["facebook", "instagram", "youtube", "mercadolibre", "wikipedia", ".com", ".ar"]):
-        return "🧭 Navegacional"
-    else:
-        return "📘 Informacional"
-
-# Función: Agrupamiento temático simple
-def agrupar_keywords(sugerencias):
-    grupos = defaultdict(list)
-    for kw in sugerencias:
-        tokens = [t for t in kw.lower().split() if t not in ("de", "para", "con", "el", "la", "los", "en", "y", "por")]
-        clave = tokens[0] if tokens else "Otros"
-        grupos[clave].append(kw)
-    return grupos
-
-if query:
-    st.markdown(f"## Resultados para: **{query}**")
-    sugerencias_totales = []
-
-    # --- 1. Google Autocomplete ---
-    st.subheader("📚 Sugerencias desde Google")
+if keyword:
+    pytrends = TrendReq(hl='es-ES', tz=360)
     try:
-        google_url = f"https://suggestqueries.google.com/complete/search?client=firefox&q={urllib.parse.quote(query)}"
-        r = requests.get(google_url)
-        google_suggestions = r.json()[1]
-        sugerencias_totales.extend(google_suggestions)
-        if google_suggestions:
-            for s in google_suggestions:
-                tipo = clasificar_intencion(s)
-                st.markdown(f"- {tipo} → **{s}**")
-                if tipo != "📘 Informacional":
-                    plan_accion.append(f"Revisar contenido para intención {tipo}: {s}")
+        # --- Obtener sugerencias ---
+        sugerencias = pytrends.suggestions(keyword)
+        if not sugerencias:
+            st.warning("No se encontraron sugerencias para esta palabra clave.")
         else:
-            st.info("No se encontraron sugerencias.")
+            df = pd.DataFrame(sugerencias)
+            st.subheader("Sugerencias de Keywords")
+            st.dataframe(df[['title', 'type']].rename(columns={"title": "Keyword", "type": "Tipo"}))
+
+            # --- Crear gráfico de relaciones ---
+            st.subheader("Relaciones entre Keywords")
+            G = nx.Graph()
+            # nodo principal
+            G.add_node(keyword)
+            # nodos secundarios y aristas
+            for item in sugerencias:
+                G.add_node(item['title'])
+                G.add_edge(keyword, item['title'])
+
+            pos = nx.spring_layout(G, seed=42)
+            edge_x, edge_y = [], []
+            for edge in G.edges():
+                x0, y0 = pos[edge[0]]
+                x1, y1 = pos[edge[1]]
+                edge_x.extend([x0, x1, None])
+                edge_y.extend([y0, y1, None])
+
+            edge_trace = go.Scatter(
+                x=edge_x, y=edge_y,
+                line=dict(width=1, color='#888'),
+                hoverinfo='none',
+                mode='lines'
+            )
+
+            node_x, node_y, node_text = [], [], []
+            for node in G.nodes():
+                x, y = pos[node]
+                node_x.append(x)
+                node_y.append(y)
+                node_text.append(node)
+
+            node_trace = go.Scatter(
+                x=node_x, y=node_y,
+                mode='markers+text',
+                text=node_text,
+                textposition="bottom center",
+                marker=dict(size=20, color='skyblue', line_width=2)
+            )
+
+            fig = go.Figure(data=[edge_trace, node_trace])
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(fig)
+
     except Exception as e:
-        st.error(f"Error al obtener sugerencias de Google: {e}")
-
-    # --- 2. YouTube ---
-    st.subheader("🎥 Sugerencias desde YouTube")
-    try:
-        yt_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote(query)}"
-        r = requests.get(yt_url)
-        yt_suggestions = r.json()[1]
-        sugerencias_totales.extend(yt_suggestions)
-        if yt_suggestions:
-            for s in yt_suggestions:
-                tipo = clasificar_intencion(s)
-                st.markdown(f"- {tipo} → **{s}**")
-                if tipo != "📘 Informacional":
-                    plan_accion.append(f"Considerar contenido video para intención {tipo}: {s}")
-        else:
-            st.info("No se encontraron sugerencias en YouTube.")
-    except Exception as e:
-        st.error(f"Error al obtener sugerencias de YouTube: {e}")
-
-    # --- 3. Wikipedia ---
-    st.subheader("📖 Temas y entidades desde Wikipedia")
-    try:
-        wiki_api = "https://es.wikipedia.org/w/api.php"
-        params = {
-            "action": "query",
-            "format": "json",
-            "list": "search",
-            "srsearch": query,
-            "srlimit": 5
-        }
-        r = requests.get(wiki_api, params=params)
-        results = r.json()["query"]["search"]
-        if results:
-            for result in results:
-                title = result["title"]
-                snippet = result["snippet"].replace("<span class=\"searchmatch\">", "**").replace("</span>", "**")
-                url = f"https://es.wikipedia.org/wiki/{title.replace(' ', '_')}"
-                st.markdown(f"🔗 [{title}]({url})")
-                st.markdown(f"_{snippet}_\n")
-        else:
-            st.info("No se encontraron temas en Wikipedia.")
-    except Exception as e:
-        st.error(f"Error al consultar Wikipedia: {e}")
-
-    # --- 4. Agrupamiento temático ---
-    st.subheader("🧩 Agrupamiento temático")
-    grupos = agrupar_keywords(sorted(set(sugerencias_totales)))
-    for grupo, items in grupos.items():
-        st.markdown(f"**Grupo `{grupo}`** ({len(items)}):")
-        for item in items:
-            st.markdown(f"- {item}")
-        st.markdown("---")
-
-    # --- 5. Popularidad relativa (Google Trends) ---
-    st.subheader("📈 Popularidad relativa de la keyword principal")
-    try:
-        pytrends = TrendReq(hl='es-AR', tz=360)
-        pytrends.build_payload([query], timeframe='today 12-m', geo='AR', gprop='')
-        interest = pytrends.interest_over_time()
-        if not interest.empty:
-            st.line_chart(interest[query])
-            plan_accion.append(f"Monitorear tendencias de búsqueda para: {query}")
-        else:
-            st.info("No hay datos de tendencias disponibles.")
-    except Exception as e:
-        st.error(f"Error al consultar Google Trends: {e}")
-
-# --- Panel lateral con plan de acción acumulado ---
-st.sidebar.header("🎯 Plan de acción sugerido")
-if plan_accion:
-    for a in plan_accion:
-        st.sidebar.write(f"• {a}")
-else:
-    st.sidebar.write("No se han generado recomendaciones todavía.")
-
-# CTA final
-st.markdown("---")
-st.markdown(
-    """
-    <div style="text-align: center;">
-        <p>✨ Herramienta educativa de SEO creada por Florencia Estevez.</p>
-        <p>💌 ¿Te sirvió? Comentanos o escribime: <a href="mailto:florencia@crawla.agency">florencia@crawla.agency</a></p>
-        <br>
-        <a href="https://www.linkedin.com/in/festevez3005/" target="_blank">
-            <button style="background-color:#4B8BBE; color:white; padding:10px 20px; font-size:16px; border:none; border-radius:6px; cursor:pointer;">
-                🌐 Conectá conmigo en LinkedIn
-            </button>
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        st.error(f"Ocurrió un error: {e}")
