@@ -28,8 +28,8 @@ cc = country_codes[country]
 keyword = st.text_input("Ingresá la palabra clave principal:")
 
 # Función de autosuggest de Google
-def get_google_suggestions(q, cc="us"):
-    url = f"https://suggestqueries.google.com/complete/search?client=firefox&hl={cc}&q={urllib.parse.quote(q)}"
+def get_google_suggestions(q, cc="us", lang="es"):
+    url = f"https://suggestqueries.google.com/complete/search?client=firefox&hl={lang}&gl={cc}&q={urllib.parse.quote(q)}"
     try:
         resp = requests.get(url, timeout=5)
         suggestions = resp.json()[1]
@@ -37,48 +37,44 @@ def get_google_suggestions(q, cc="us"):
         suggestions = []
     return suggestions
 
-# Función de extracción de categorías y extracto de Wikipedia
-def get_wikipedia_info(term, lang="es"):
+# Función de obtención de primera categoría de Wikipedia
+def get_first_wikipedia_category(term, lang="es"):
     wikipedia.set_lang(lang)
-    data = {"categories": [], "summary": ""}
     try:
         page_title = wikipedia.search(term)[0]
         page = wikipedia.page(page_title)
-        cats = page.categories
-        data["categories"] = [c.replace("Categoría:", "") for c in cats if c][:3]  # máximo 3 categorías
-        data["summary"] = page.summary[:300] + "..." if page.summary else ""
+        categories = page.categories
+        if categories:
+            return categories[0].replace("Categoría:", "")
     except:
-        data = {"categories": [], "summary": ""}
-    return data
+        return None
+    return None
 
 if keyword:
     st.info("Consultando sugerencias de Google...")
-    suggestions = get_google_suggestions(keyword, cc)
+    suggestions = get_google_suggestions(keyword, cc, lang)
     st.success(f"Se encontraron {len(suggestions)} sugerencias.")
     
     entities = {}
     for sug in suggestions:
-        info = get_wikipedia_info(sug, lang)
-        entities[sug] = info
+        category = get_first_wikipedia_category(sug, lang)
+        entities[sug] = category
         time.sleep(0.3)  # Para no saturar Wikipedia
     
-    st.subheader("Sugerencias, categorías y extractos de Wikipedia")
-    for sug, info in entities.items():
-        cats = info["categories"]
-        summary = info["summary"]
+    st.subheader("Sugerencias y ejemplo de categoría de Wikipedia")
+    for sug, cat in entities.items():
         st.write(f"- **{sug}**")
-        st.write(f"  - Categorías: {', '.join(cats) if cats else 'Sin categorías encontradas'}")
-        if summary:
-            st.write(f"  - Extracto: {summary}")
+        if cat:
+            st.write(f"  - Categoría de referencia: {cat}")
     
     # --- Grafo interactivo ---
     st.info("Generando grafo interactivo...")
     G = nx.Graph()
     G.add_node(keyword, color="red", size=20)
-    for sug, info in entities.items():
+    for sug, cat in entities.items():
         G.add_node(sug, color="orange", size=15)
         G.add_edge(keyword, sug)
-        for cat in info["categories"]:
+        if cat:
             G.add_node(cat, color="lightblue", size=10)
             G.add_edge(sug, cat)
     
