@@ -1,38 +1,44 @@
+# app.py
 import streamlit as st
-from GoogleNews import GoogleNews
+from googlesearch import search_suggestions
 import wikipedia
-from google_suggest import get_suggestions  # supongamos que tenés esta función
 
-st.title("Keyword Research con Autosuggest y Categorías Wikipedia")
+# Configuración de Wikipedia
+wikipedia.set_lang("es")  # idioma por defecto, luego se ajusta según input
+
+st.title("Herramienta de Keyword Research")
 
 # Inputs
-keyword = st.text_input("Ingresa tu keyword")
-pais = st.selectbox("Selecciona el país", ["ar", "cl", "es", "mx"])
-idioma = st.selectbox("Selecciona el idioma", ["es", "en"])
+keyword = st.text_input("Ingresa la palabra clave")
+country = st.selectbox("País", ["Argentina", "España", "México", "Chile"])
+language = st.selectbox("Idioma", ["es", "en", "pt"])
 
-def obtener_categoria_wikipedia(sugerencia, lang="es"):
-    if len(sugerencia.split()) > 4:
-        return "No disponible"
+# Ajustamos Wikipedia al idioma elegido
+wikipedia.set_lang(language)
+
+def get_wikipedia_category(term):
     try:
-        resultados = wikipedia.search(sugerencia, results=1, lang=lang)
-        if resultados:
-            titulo = resultados[0]
-            primera_palabra = sugerencia.split()[0].lower()
-            if primera_palabra in titulo.lower():
-                pagina = wikipedia.page(titulo, auto_suggest=False, lang=lang)
-                if pagina.categories:
-                    return pagina.categories[0]
+        # Buscar página más relevante
+        page = wikipedia.page(term)
+        # Comprobamos coincidencia parcial
+        if term.lower() in page.title.lower():
+            cats = wikipedia.categories(page.title)
+            if cats:
+                return cats[0]  # primera categoría como ejemplo
         return "No disponible"
     except:
         return "No disponible"
 
-if keyword:
-    st.info("Consultando sugerencias...")
-    sugerencias = get_suggestions(keyword, country=pais, language=idioma)
-    
-    resultados = []
-    for s in sugerencias:
-        categoria = obtener_categoria_wikipedia(s, lang=idioma)
-        resultados.append({"Keyword": s, "Categoría de referencia": categoria})
-    
-    st.table(resultados)
+if st.button("Buscar"):
+    if keyword:
+        st.write("Buscando sugerencias...")
+        suggestions = search_suggestions(keyword, language=language, country=country)
+        
+        results = []
+        for sug in suggestions:
+            category = get_wikipedia_category(sug)
+            results.append({"Keyword": sug, "Categoría de referencia": category})
+        
+        st.table(results)
+    else:
+        st.warning("Por favor, ingresa una palabra clave.")
