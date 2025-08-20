@@ -1,3 +1,7 @@
 streamlit
+pytrends
+pyvis
 wikipedia
-google-search-suggestions
+googlesearch-python
+requests
+beautifulsoup4
